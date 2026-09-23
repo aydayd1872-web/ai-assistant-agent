@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 
-const AGENT_NAME = "ai-assistant";
+const AGENT_NAME = "Aegis";
 
 export function SignIn() {
   const [pending, setPending] = useState(false);
