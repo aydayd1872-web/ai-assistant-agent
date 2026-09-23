@@ -20,8 +20,13 @@ const mono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ai-assistant",
-  description: "A Next.js starter for eve agents with AI Elements.",
+  title: "Aegis — Cybersecurity Copilot",
+  description:
+    "Aegis is a premium defensive-security AI copilot for secure coding, threat modeling, hardening, and incident response.",
+};
+
+export const viewport = {
+  themeColor: "#0a0f1a",
 };
 
 // The page and Eve routes validate the generated app's Better Auth session.

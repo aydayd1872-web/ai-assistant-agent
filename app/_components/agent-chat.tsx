@@ -2,7 +2,17 @@
 
 import type { UserContent } from "ai";
 import { useEveAgent } from "eve/react";
-import { AlertCircleIcon, BrainIcon, PlusIcon, SquareIcon } from "lucide-react";
+import {
+  AlertCircleIcon,
+  BrainIcon,
+  BugIcon,
+  FileSearchIcon,
+  KeyRoundIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+  ShieldIcon,
+  SquareIcon,
+} from "lucide-react";
 import { useState } from "react";
 import {
   Conversation,
@@ -24,7 +34,33 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AgentMessage } from "./agent-message";
 
-const AGENT_NAME = "ai-assistant";
+const AGENT_NAME = "Aegis";
+const AGENT_TAGLINE = "Your premium cybersecurity copilot";
+const AGENT_MODEL = "Claude Sonnet 4.5";
+
+const SUGGESTIONS = [
+  {
+    icon: ShieldCheckIcon,
+    label: "OWASP Top 10",
+    prompt: "Walk me through the OWASP Top 10 with a real-world example and fix for each.",
+  },
+  {
+    icon: FileSearchIcon,
+    label: "Review code for vulnerabilities",
+    prompt:
+      "Review this code for security vulnerabilities and suggest hardened fixes:\n\n```\n// paste your code here\n```",
+  },
+  {
+    icon: KeyRoundIcon,
+    label: "Harden authentication",
+    prompt: "How do I implement secure sessions, password hashing, and MFA best practices?",
+  },
+  {
+    icon: BugIcon,
+    label: "Incident response plan",
+    prompt: "Create a step-by-step incident response checklist for a suspected data breach.",
+  },
+] as const;
 
 export function AgentChat({
   sessionId,
@@ -78,6 +114,12 @@ export function AgentChat({
     void agent.cancel().catch((error: unknown) => {
       setCancellationError(toErrorMessage(error));
     });
+  };
+
+  const sendSuggestion = (text: string) => {
+    if (isResuming || isBusy) return;
+    setCancellationError(undefined);
+    void agent.send(text);
   };
 
   const handleSubmit = async (message: PromptInputMessage) => {
@@ -177,14 +219,49 @@ export function AgentChat({
             : "flex max-w-xl flex-1 flex-col items-center justify-center gap-8 pb-[10vh]",
         )}
       >
-        {showConversationLayout ? null : (
-          <div className="flex flex-col items-center gap-3 text-center">
-            <h1 className="font-medium text-5xl tracking-tighter">{AGENT_NAME}</h1>
-          </div>
-        )}
+        {showConversationLayout ? null : <HeroIntro onSuggestion={sendSuggestion} />}
         <div className="w-full">{composer}</div>
       </div>
     </main>
+  );
+}
+
+function HeroIntro({ onSuggestion }: { readonly onSuggestion: (text: string) => void }) {
+  return (
+    <div className="flex w-full flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-5 text-center">
+        <span className="relative flex size-16 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_0_40px_-8px_var(--color-primary)]">
+          <ShieldIcon className="size-8" />
+        </span>
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="font-semibold text-5xl tracking-tighter">{AGENT_NAME}</h1>
+          <p className="text-balance text-muted-foreground">{AGENT_TAGLINE}</p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-muted-foreground text-xs backdrop-blur">
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
+          Secure session
+          <span aria-hidden="true" className="text-border">
+            /
+          </span>
+          {AGENT_MODEL}
+        </span>
+      </div>
+      <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {SUGGESTIONS.map(({ icon: Icon, label, prompt }) => (
+          <button
+            className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            key={label}
+            onClick={() => onSuggestion(prompt)}
+            type="button"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+              <Icon className="size-4" />
+            </span>
+            <span className="font-medium text-foreground text-sm">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -240,8 +317,11 @@ function ErrorMessage({ message }: { readonly message: string }) {
 function ChatHeader({ canStartNewChat }: { readonly canStartNewChat: boolean }) {
   return (
     <header className="pointer-events-none fixed top-0 right-0 left-0 z-20 h-14">
-      <div className="relative mx-auto flex h-full w-full max-w-3xl items-center justify-center bg-background px-24">
-        <span className="truncate text-muted-foreground text-sm">{AGENT_NAME}</span>
+      <div className="relative mx-auto flex h-full w-full max-w-3xl items-center justify-center bg-gradient-to-b from-background via-background to-transparent px-24">
+        <span className="inline-flex items-center gap-2 truncate text-sm">
+          <ShieldCheckIcon className="size-4 text-primary" />
+          <span className="font-medium text-foreground">{AGENT_NAME}</span>
+        </span>
         {canStartNewChat ? (
           <Button
             aria-label="Start a new chat"

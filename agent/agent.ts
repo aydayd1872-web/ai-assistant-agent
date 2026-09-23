@@ -1,5 +1,5 @@
 import { defineAgent } from "eve";
 
 export default defineAgent({
-  model: "alibaba/qwen3-235b-a22b-thinking",
+  model: "anthropic/claude-sonnet-4.5",
 });
