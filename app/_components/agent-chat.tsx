@@ -7,13 +7,16 @@ import {
   BrainIcon,
   BugIcon,
   FileSearchIcon,
+  ImageIcon,
   KeyRoundIcon,
   PlusIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   ShieldIcon,
   SquareIcon,
+  XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -33,34 +36,13 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AgentMessage } from "./agent-message";
+import { useLanguage } from "./i18n";
+import { DEFAULT_MODEL_ID, getModelById, MODEL_STORAGE_KEY } from "./models";
+import { SettingsDialog } from "./settings-dialog";
 
 const AGENT_NAME = "Aegis";
-const AGENT_TAGLINE = "Your premium cybersecurity copilot";
-const AGENT_MODEL = "Claude Sonnet 4.5";
 
-const SUGGESTIONS = [
-  {
-    icon: ShieldCheckIcon,
-    label: "OWASP Top 10",
-    prompt: "Walk me through the OWASP Top 10 with a real-world example and fix for each.",
-  },
-  {
-    icon: FileSearchIcon,
-    label: "Review code for vulnerabilities",
-    prompt:
-      "Review this code for security vulnerabilities and suggest hardened fixes:\n\n```\n// paste your code here\n```",
-  },
-  {
-    icon: KeyRoundIcon,
-    label: "Harden authentication",
-    prompt: "How do I implement secure sessions, password hashing, and MFA best practices?",
-  },
-  {
-    icon: BugIcon,
-    label: "Incident response plan",
-    prompt: "Create a step-by-step incident response checklist for a suspected data breach.",
-  },
-] as const;
+const SUGGESTION_ICONS = [ShieldCheckIcon, FileSearchIcon, KeyRoundIcon, BugIcon] as const;
 
 export function AgentChat({
   sessionId,
@@ -69,8 +51,24 @@ export function AgentChat({
   readonly sessionId?: string;
   readonly sessionless?: boolean;
 }) {
+  const { t, dir } = useLanguage();
   const [cancellationError, setCancellationError] = useState<string>();
   const [hasInputText, setHasInputText] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(MODEL_STORAGE_KEY);
+    if (stored) {
+      setModelId(getModelById(stored).id);
+    }
+  }, []);
+
+  const changeModel = (id: string) => {
+    setModelId(id);
+    window.localStorage.setItem(MODEL_STORAGE_KEY, id);
+  };
+
   const agent = useEveAgent({
     initialSession:
       sessionId === undefined
@@ -152,25 +150,39 @@ export function AgentChat({
   };
 
   const composer = (
-    <PromptInput onSubmit={handleSubmit}>
+    <PromptInput accept="image/*" multiple onSubmit={handleSubmit}>
+      <AttachmentPreview />
       <PromptInputTextarea
         disabled={isResuming}
         onChange={(event) => setHasInputText(event.currentTarget.value.trim().length > 0)}
-        placeholder="Send a message…"
+        placeholder={t.sendPlaceholder}
       />
+      <AttachImageButton isResuming={isResuming} label={t.attachImage} />
       <ComposerAction
         hasInputText={hasInputText}
         isBusy={isBusy}
         isResuming={isResuming}
         onCancel={requestCancellation}
+        stopLabel={t.stop}
       />
     </PromptInput>
   );
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+    <main className="flex h-dvh flex-col overflow-hidden bg-background text-foreground" dir={dir}>
+      <SettingsDialog
+        modelId={modelId}
+        onModelChange={changeModel}
+        onOpenChange={setSettingsOpen}
+        open={settingsOpen}
+      />
       {showConversationLayout ? (
-        <ChatHeader canStartNewChat={activeSessionId !== undefined} />
+        <ChatHeader
+          canStartNewChat={activeSessionId !== undefined}
+          newChatLabel={t.newChat}
+          onOpenSettings={() => setSettingsOpen(true)}
+          settingsLabel={t.settings}
+        />
       ) : null}
 
       {showConversationLayout ? (
@@ -219,14 +231,23 @@ export function AgentChat({
             : "flex max-w-xl flex-1 flex-col items-center justify-center gap-8 pb-[10vh]",
         )}
       >
-        {showConversationLayout ? null : <HeroIntro onSuggestion={sendSuggestion} />}
+        {showConversationLayout ? null : (
+          <HeroIntro modelName={getModelById(modelId).name} onSuggestion={sendSuggestion} />
+        )}
         <div className="w-full">{composer}</div>
       </div>
     </main>
   );
 }
 
-function HeroIntro({ onSuggestion }: { readonly onSuggestion: (text: string) => void }) {
+function HeroIntro({
+  onSuggestion,
+  modelName,
+}: {
+  readonly onSuggestion: (text: string) => void;
+  readonly modelName: string;
+}) {
+  const { t } = useLanguage();
   return (
     <div className="flex w-full flex-col items-center gap-8">
       <div className="flex flex-col items-center gap-5 text-center">
@@ -235,21 +256,23 @@ function HeroIntro({ onSuggestion }: { readonly onSuggestion: (text: string) => 
         </span>
         <div className="flex flex-col items-center gap-2">
           <h1 className="font-semibold text-5xl tracking-tighter">{AGENT_NAME}</h1>
-          <p className="text-balance text-muted-foreground">{AGENT_TAGLINE}</p>
+          <p className="text-balance text-muted-foreground">{t.tagline}</p>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-muted-foreground text-xs backdrop-blur">
           <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
-          Secure session
+          {t.secureSession}
           <span aria-hidden="true" className="text-border">
             /
           </span>
-          {AGENT_MODEL}
+          {modelName}
         </span>
       </div>
       <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {SUGGESTIONS.map(({ icon: Icon, label, prompt }) => (
+        {t.suggestions.map(({ label, prompt }, index) => {
+          const Icon = SUGGESTION_ICONS[index] ?? ShieldCheckIcon;
+          return (
           <button
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-start transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             key={label}
             onClick={() => onSuggestion(prompt)}
             type="button"
@@ -259,7 +282,8 @@ function HeroIntro({ onSuggestion }: { readonly onSuggestion: (text: string) => 
             </span>
             <span className="font-medium text-foreground text-sm">{label}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -270,23 +294,25 @@ function ComposerAction({
   isBusy,
   isResuming,
   onCancel,
+  stopLabel,
 }: {
   readonly hasInputText: boolean;
   readonly isBusy: boolean;
   readonly isResuming: boolean;
   readonly onCancel: () => void;
+  readonly stopLabel: string;
 }) {
   const attachments = usePromptInputAttachments();
   const canSubmit = hasInputText || attachments.files.length > 0;
 
   if (!isBusy || canSubmit) {
-    return <PromptInputSubmit disabled={isResuming} />;
+    return <PromptInputSubmit className="absolute end-2.5 bottom-2.5" disabled={isResuming} />;
   }
 
   return (
     <PromptInputButton
-      aria-label="Stop"
-      className="absolute right-2.5 bottom-2.5"
+      aria-label={stopLabel}
+      className="absolute end-2.5 bottom-2.5"
       onClick={onCancel}
       variant="outline"
     >
@@ -295,7 +321,68 @@ function ComposerAction({
   );
 }
 
+function AttachImageButton({
+  isResuming,
+  label,
+}: {
+  readonly isResuming: boolean;
+  readonly label: string;
+}) {
+  const attachments = usePromptInputAttachments();
+  return (
+    <PromptInputButton
+      aria-label={label}
+      className="absolute start-2.5 bottom-2.5"
+      disabled={isResuming}
+      onClick={() => attachments.openFileDialog()}
+      type="button"
+      variant="ghost"
+    >
+      <ImageIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
+function AttachmentPreview() {
+  const attachments = usePromptInputAttachments();
+  if (attachments.files.length === 0) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap gap-2 px-3 pt-3">
+      {attachments.files.map((file) => (
+        <div
+          className="group relative size-16 overflow-hidden rounded-lg border border-border bg-muted"
+          key={file.id}
+        >
+          {file.mediaType?.startsWith("image/") && file.url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={file.filename ?? "attachment"}
+              className="size-full object-cover"
+              src={file.url}
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center">
+              <ImageIcon className="size-5 text-muted-foreground" />
+            </div>
+          )}
+          <button
+            aria-label="Remove attachment"
+            className="absolute end-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={() => attachments.remove(file.id)}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ErrorMessage({ message }: { readonly message: string }) {
+  const { t } = useLanguage();
   return (
     <Message className="max-w-full" from="assistant">
       <MessageContent>
@@ -305,7 +392,7 @@ function ErrorMessage({ message }: { readonly message: string }) {
         >
           <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
           <div>
-            <p className="font-medium">Request failed</p>
+            <p className="font-medium">{t.requestFailed}</p>
             <p className="mt-0.5 text-muted-foreground">{message}</p>
           </div>
         </div>
@@ -314,7 +401,17 @@ function ErrorMessage({ message }: { readonly message: string }) {
   );
 }
 
-function ChatHeader({ canStartNewChat }: { readonly canStartNewChat: boolean }) {
+function ChatHeader({
+  canStartNewChat,
+  onOpenSettings,
+  newChatLabel,
+  settingsLabel,
+}: {
+  readonly canStartNewChat: boolean;
+  readonly onOpenSettings: () => void;
+  readonly newChatLabel: string;
+  readonly settingsLabel: string;
+}) {
   return (
     <header className="pointer-events-none fixed top-0 right-0 left-0 z-20 h-14">
       <div className="relative mx-auto flex h-full w-full max-w-3xl items-center justify-center bg-gradient-to-b from-background via-background to-transparent px-24">
@@ -322,19 +419,29 @@ function ChatHeader({ canStartNewChat }: { readonly canStartNewChat: boolean }) 
           <ShieldCheckIcon className="size-4 text-primary" />
           <span className="font-medium text-foreground">{AGENT_NAME}</span>
         </span>
-        {canStartNewChat ? (
+        <div className="pointer-events-auto fixed top-3 end-6 flex items-center gap-1">
+          {canStartNewChat ? (
+            <Button
+              aria-label={newChatLabel}
+              onClick={() => window.location.assign("/s")}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <PlusIcon className="size-4" />
+              <span className="hidden font-normal text-sm sm:inline">{newChatLabel}</span>
+            </Button>
+          ) : null}
           <Button
-            aria-label="Start a new chat"
-            className="pointer-events-auto fixed top-3 right-6 pr-4"
-            onClick={() => window.location.assign("/s")}
-            size="sm"
+            aria-label={settingsLabel}
+            onClick={onOpenSettings}
+            size="icon"
             type="button"
             variant="ghost"
           >
-            <PlusIcon className="size-4" />
-            <span className="hidden font-normal text-sm sm:inline">New chat</span>
+            <SettingsIcon className="size-4" />
           </Button>
-        ) : null}
+        </div>
       </div>
     </header>
   );
